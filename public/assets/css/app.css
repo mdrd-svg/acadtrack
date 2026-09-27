@@ -1,0 +1,75 @@
+/* ==========================================================================
+   AcadTrack (Golden West Colleges, Inc.) — Base Design Tokens & Global Styles
+   ========================================================================== */
+
+/* 1. Modular UI Components */
+@import url('components/button.css');
+@import url('components/input.css');
+@import url('components/select.css');
+@import url('components/card.css');
+@import url('components/table.css');
+@import url('components/modal.css');
+@import url('components/badge.css');
+@import url('components/navbar.css');
+@import url('components/sidebar.css');
+@import url('components/alert.css');
+@import url('components/pagination.css');
+@import url('components/empty-state.css');
+@import url('components/page-header.css');
+@import url('components/filter-bar.css');
+
+/* 2. Institutional Design Tokens */
+:root {
+    --primary: #2f4a86;
+    --primary-dark: #243a6b;
+    --secondary: #64748b;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --info: #0891b2;
+    --dark: #1e293b;
+    --light: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --white: #ffffff;
+    --radius: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* 3. Base Resets & Layout Box Model */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--gray-800);
+    background: var(--gray-100);
+}
+
+/* 4. Enforce Maximum Font-Weight 600 (Semibold) Across Platform */
+b, strong, th, h1, h2, h3, h4, h5, h6,
+.fw-bold, .fw-bolder, .font-weight-bold {
+    font-weight: 600 !important;
+}
+
+/* 5. Anchor Links */
+a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}

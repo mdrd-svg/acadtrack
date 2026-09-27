@@ -1,0 +1,103 @@
+name: Deploy to InfinityFree
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  test-and-deploy:
+    name: Test, Build & Deploy
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: acadtrack
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql, json, session, ctype, tokenizer
+          coverage: none
+
+      - name: Setup .env for Testing
+        run: |
+          cp .env.example .env
+          sed -i 's/DB_HOST=.*/DB_HOST=127.0.0.1/' .env
+          sed -i 's/DB_DATABASE=.*/DB_DATABASE=acadtrack/' .env
+          sed -i 's/DB_USERNAME=.*/DB_USERNAME=root/' .env
+          sed -i 's/DB_PASSWORD=.*/DB_PASSWORD=/' .env
+
+      - name: Install All Dependencies (For Testing)
+        run: composer install --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Import Database Schema for Testing
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root acadtrack < database/sql/schema.sql
+
+      - name: Run PHPUnit Tests
+        run: ./vendor/bin/phpunit --no-coverage
+
+      - name: Prepare Production Dependencies (Strip Dev Packages)
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Ensure Storage Directory Structure
+        run: |
+          mkdir -p storage/cache storage/logs storage/uploads
+          touch storage/cache/.gitkeep storage/logs/.gitkeep storage/uploads/.gitkeep
+
+      - name: Deploy to InfinityFree via FTP
+        if: env.FTP_SERVER != '' && env.FTP_USERNAME != ''
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_TARGET_DIR || '/htdocs/' }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github*
+            **/.github*/**
+            **/tests/**
+            phpunit.xml
+            .phpunit.result.cache
+            .env*
+            README.md
+            docs/**
+            skills/**
+            *.md
+            scripts/**
+
+      - name: Trigger Remote Database Migrations
+        if: env.FTP_SERVER != '' && env.FTP_USERNAME != ''
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          npm install puppeteer --no-save
+          node scripts/trigger-deploy-migration.js
+
+
+

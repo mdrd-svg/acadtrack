@@ -1,0 +1,544 @@
+-- Acadtrack Database Schema
+--
+-- For local development with root privileges, you can uncomment the database creation:
+-- CREATE DATABASE IF NOT EXISTS acadtrack CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- USE acadtrack;
+--
+-- When importing via hosting panels (InfinityFree, cPanel phpMyAdmin), select your database
+-- from the left sidebar before importing this file directly.
+
+-- Users
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    is_temp_password TINYINT(1) NOT NULL DEFAULT 1,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    deactivated_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email),
+    INDEX idx_users_status (status)
+) ENGINE=InnoDB;
+
+-- Academic Years
+CREATE TABLE academic_years (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_year VARCHAR(20) NOT NULL,
+    is_active TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ay_school_year (school_year),
+    INDEX idx_ay_active (is_active)
+) ENGINE=InnoDB;
+
+-- Academic Terms (Semesters)
+CREATE TABLE academic_terms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_year_id INT NOT NULL,
+    school_year VARCHAR(20) NULL,
+    semester INT(2) NOT NULL DEFAULT 1,
+    is_active TINYINT(1) DEFAULT 0,
+    is_closed TINYINT(1) DEFAULT 0,
+    closed_at TIMESTAMP NULL DEFAULT NULL,
+    closed_by INT NULL DEFAULT NULL,
+    closure_reason VARCHAR(255) NULL DEFAULT NULL,
+    is_archived TINYINT(1) DEFAULT 0,
+    archived_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE CASCADE,
+    FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_is_archived (is_archived),
+    INDEX idx_terms_closed (is_closed),
+    INDEX idx_terms_active_sem (is_active, semester),
+    INDEX idx_terms_year_sem (academic_year_id, semester)
+) ENGINE=InnoDB;
+
+-- Roles
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- User Roles
+CREATE TABLE user_roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    role_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_role (user_id, role_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_role_id (role_id)
+) ENGINE=InnoDB;
+
+-- Admin Details
+CREATE TABLE admin_details (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    first_name VARCHAR(100) NOT NULL,
+    middle_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NOT NULL,
+    phone_number VARCHAR(20) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Departments
+CREATE TABLE departments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    dept_abbrev VARCHAR(50) NOT NULL UNIQUE,
+    dept_name VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+    status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_departments_status (status)
+) ENGINE=InnoDB;
+
+-- Programs (Academic Degrees)
+CREATE TABLE programs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    department_id INT NULL,
+    program_abbrev VARCHAR(30) NOT NULL UNIQUE,
+    program_name VARCHAR(191) NOT NULL UNIQUE,
+    program_type VARCHAR(100) NOT NULL DEFAULT 'Bachelors Degree',
+    program_length VARCHAR(50) NOT NULL DEFAULT '4 Years',
+    description TEXT NULL,
+    status ENUM('draft', 'active', 'archived') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+    INDEX idx_dept_status (department_id, status)
+) ENGINE=InnoDB;
+
+-- Sets
+CREATE TABLE sets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    department_id INT NULL,
+    program_id INT NULL,
+    set_name VARCHAR(50) NOT NULL,
+    set_code VARCHAR(20) NULL,
+    year_level INT NOT NULL,
+    status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_set (set_name, academic_term_id),
+    INDEX idx_sets_term_year (academic_term_id, year_level),
+    INDEX idx_sets_term_status (academic_term_id, status)
+) ENGINE=InnoDB;
+
+-- Student Details
+CREATE TABLE student_details (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    program_id INT NULL,
+    set_id INT NULL,
+    student_number VARCHAR(50) NULL UNIQUE,
+    first_name VARCHAR(100) NOT NULL,
+    middle_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NOT NULL,
+    year_level INT NOT NULL DEFAULT 1,
+    status ENUM('Regular', 'Irregular') NOT NULL DEFAULT 'Regular',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
+    FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE SET NULL,
+    INDEX idx_student_number (student_number),
+    INDEX idx_sd_name (last_name, first_name),
+    INDEX idx_sd_year_level (year_level),
+    INDEX idx_sd_status (status),
+    INDEX idx_sd_set_prog (set_id, program_id)
+) ENGINE=InnoDB;
+
+-- Faculty Details
+CREATE TABLE faculty_details (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    department_id INT NULL,
+    employee_id VARCHAR(50) NULL UNIQUE,
+    first_name VARCHAR(100) NOT NULL,
+    middle_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NOT NULL,
+    faculty_type ENUM('instructor', 'dean') NOT NULL DEFAULT 'instructor',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+    INDEX idx_faculty_type (faculty_type),
+    INDEX idx_fd_name (last_name, first_name),
+    INDEX idx_fd_dept_type (department_id, faculty_type)
+) ENGINE=InnoDB;
+
+-- Students (extension of users)
+CREATE TABLE students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    set_id INT NULL,
+    year_level INT NOT NULL,
+    status ENUM('Regular', 'Irregular') NOT NULL DEFAULT 'Regular',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Faculty (extension of users)
+CREATE TABLE faculty (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    department_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Subjects
+CREATE TABLE subjects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    program_id INT NULL,
+    subject_code VARCHAR(50) NOT NULL,
+    descriptive_title VARCHAR(200) NOT NULL,
+    units DECIMAL(4, 1) NOT NULL DEFAULT 3.0,
+    subject_type VARCHAR(50) NOT NULL DEFAULT 'GenEd Core',
+    nature ENUM('Lecture', 'Laboratory', 'Combined') NOT NULL DEFAULT 'Lecture',
+    year_level INT NOT NULL,
+    semester INT(2) NOT NULL DEFAULT 1,
+    is_archived TINYINT(1) DEFAULT 0,
+    archived_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_subject (subject_code, academic_term_id),
+    INDEX idx_is_archived (is_archived),
+    INDEX idx_subjects_term_archived (academic_term_id, is_archived, semester),
+    INDEX idx_subjects_term_year_sem (academic_term_id, year_level, semester),
+    INDEX idx_subjects_program (program_id)
+) ENGINE=InnoDB;
+
+-- Subject Prerequisites (Normalized 3NF / BCNF)
+CREATE TABLE prerequisites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    subject_id INT NOT NULL,
+    prerequisite_subject_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY (prerequisite_subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_prereq_pair (subject_id, prerequisite_subject_id),
+    INDEX idx_subject_id (subject_id),
+    INDEX idx_prereq_subject_id (prerequisite_subject_id)
+) ENGINE=InnoDB;
+
+-- Faculty-Subject Assignments
+CREATE TABLE faculty_subjects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    faculty_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (faculty_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
+    UNIQUE KEY unique_assignment (faculty_id, subject_id, academic_term_id)
+) ENGINE=InnoDB;
+
+-- Enrollments
+CREATE TABLE enrollments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    student_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
+    UNIQUE KEY unique_enrollment (student_id, subject_id, academic_term_id),
+    INDEX idx_enrollments_subject_term (subject_id, academic_term_id),
+    INDEX idx_enrollments_student_term (student_id, academic_term_id)
+) ENGINE=InnoDB;
+
+-- Grading Periods
+CREATE TABLE grading_periods (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    order_num INT NOT NULL,
+    weight DECIMAL(5,2) DEFAULT 1.00,
+    is_current TINYINT(1) DEFAULT 0,
+    is_closed TINYINT(1) DEFAULT 0,
+    closed_at TIMESTAMP NULL DEFAULT NULL,
+    closure_reason VARCHAR(255) NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+    INDEX idx_gp_closed (is_closed)
+) ENGINE=InnoDB;
+
+-- Grades
+CREATE TABLE grades (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    grading_period_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    student_id INT NOT NULL,
+    grade DECIMAL(5,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE RESTRICT,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (grading_period_id) REFERENCES grading_periods(id) ON DELETE CASCADE,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
+    UNIQUE KEY unique_grade (student_id, subject_id, grading_period_id, academic_term_id),
+    INDEX idx_grades_subject_term_period (subject_id, academic_term_id, grading_period_id),
+    INDEX idx_grades_student_term (student_id, academic_term_id)
+) ENGINE=InnoDB;
+
+-- Grade History Log (Immutable Audit Trail)
+CREATE TABLE grade_history_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    grade_id INT NOT NULL,
+    student_id INT NOT NULL,
+    old_score DECIMAL(5,2) NULL,
+    new_score DECIMAL(5,2) NULL,
+    action_performed VARCHAR(20) DEFAULT 'UPDATE',
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_grade_id (grade_id),
+    INDEX idx_student_id (student_id)
+) ENGINE=InnoDB;
+
+-- Grading Sheets
+CREATE TABLE grading_sheets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    grading_period_id INT NOT NULL,
+    faculty_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    status ENUM('DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'FINALIZED', 'RETURNED') DEFAULT 'DRAFT',
+    approved_by INT NULL,
+    submitted_at TIMESTAMP NULL,
+    approved_at TIMESTAMP NULL,
+    returned_at TIMESTAMP NULL,
+    confirmed_at TIMESTAMP NULL,
+    remarks TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (faculty_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
+    FOREIGN KEY (grading_period_id) REFERENCES grading_periods(id) ON DELETE CASCADE,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
+    UNIQUE KEY unique_sheet (faculty_id, subject_id, grading_period_id, academic_term_id),
+    INDEX idx_sheets_term_status (academic_term_id, status),
+    INDEX idx_sheets_faculty_term (faculty_id, academic_term_id)
+) ENGINE=InnoDB;
+
+-- Grading Settings
+CREATE TABLE grading_settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    faculty_id INT NULL,
+    subject_id INT NULL,
+    grading_method ENUM('zero_based', 'fifty_based') DEFAULT 'zero_based',
+    min_grade DECIMAL(5,2) DEFAULT 0.00,
+    max_grade DECIMAL(5,2) DEFAULT 100.00,
+    prelim_weight DECIMAL(5,2) DEFAULT 20.00,
+    midterm_weight DECIMAL(5,2) DEFAULT 20.00,
+    semi_final_weight DECIMAL(5,2) DEFAULT 20.00,
+    final_weight DECIMAL(5,2) DEFAULT 40.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+    FOREIGN KEY (faculty_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Attendance Records
+CREATE TABLE attendance_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    academic_term_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    student_id INT NOT NULL,
+    faculty_id INT NOT NULL,
+    attendance_date DATE NOT NULL,
+    status ENUM('Present', 'Absent', 'Excused', 'Late') NOT NULL DEFAULT 'Present',
+    remarks VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (faculty_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_attendance_student_subject_date (academic_term_id, subject_id, student_id, attendance_date),
+    INDEX idx_att_sub_term_date (subject_id, academic_term_id, attendance_date),
+    INDEX idx_att_stud_term (student_id, academic_term_id)
+) ENGINE=InnoDB;
+
+-- Notifications
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type ENUM('credentials', 'grades_published', 'general') NOT NULL DEFAULT 'general',
+    status ENUM('sent', 'pending', 'failed') NOT NULL DEFAULT 'sent',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id),
+    INDEX idx_type (type),
+    INDEX idx_notifications_user_status_date (user_id, status, created_at)
+) ENGINE=InnoDB;
+
+-- Password Resets
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    token VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NULL DEFAULT NULL,
+    used_at TIMESTAMP NULL DEFAULT NULL,
+    INDEX idx_password_resets_email (email),
+    INDEX idx_password_resets_token (token)
+) ENGINE=InnoDB;
+
+-- Term Audit Logs (Append-Only Lifecycle Ledger)
+CREATE TABLE IF NOT EXISTS term_audit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    action VARCHAR(64) NOT NULL,
+    sy_id INT NULL,
+    school_year VARCHAR(20) NULL,
+    semester_number INT NULL,
+    performed_by INT NULL,
+    performer_name VARCHAR(255) NULL,
+    role VARCHAR(64) NULL,
+    ip_address VARCHAR(45) NULL,
+    details TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tal_action (action),
+    INDEX idx_tal_sy_id (sy_id),
+    INDEX idx_tal_performed_by (performed_by),
+    INDEX idx_tal_created_at (created_at),
+    FOREIGN KEY (sy_id) REFERENCES academic_years(id) ON DELETE SET NULL,
+    FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Insert default academic year and terms
+INSERT INTO academic_years (id, school_year, is_active) VALUES
+(1, '2026-2027', 1);
+
+INSERT INTO academic_terms (id, academic_year_id, school_year, semester, is_active, is_archived) VALUES
+(1, 1, '2026-2027', 1, 1, 0),
+(2, 1, '2026-2027', 2, 0, 0);
+
+-- Insert baseline roles
+INSERT INTO roles (id, role_name, description) VALUES
+(1, 'Admin', 'System Administrator with full institutional management access'),
+(2, 'Dean', 'College Dean overseeing curriculum, faculty assignments, and grade verification'),
+(3, 'Faculty', 'Instructor encoding student scores and submitting period grading sheets'),
+(4, 'Student', 'Enrolled student viewing official grades and whole evaluation');
+
+-- Insert default admin user (email: admin@gwc.edu, temporary password: GWC_acadtrack@2026)
+INSERT INTO users (id, email, password, status, is_temp_password) VALUES
+(1, 'admin@gwc.edu', '$2y$10$IMk.VC1eTxllDzm.Ufxz1etCBMBG7VgzXaJ1Qqk0f4KZ3WSJqTeu2', 'active', 1);
+
+-- Map admin user to Admin role
+INSERT INTO user_roles (user_id, role_id) VALUES
+(1, 1);
+
+-- Insert admin profile details
+INSERT INTO admin_details (user_id, first_name, last_name) VALUES
+(1, 'System', 'Admin');
+
+-- Insert default academic departments
+INSERT INTO departments (id, dept_abbrev, dept_name, description, status) VALUES
+(1, 'CITE', 'College of Information Technology Education', 'Academic department managing Information Technology, Computer Science, and computing education programs.', 'active'),
+(2, 'COC', 'College of Criminology', 'Academic department delivering criminal justice, law enforcement administration, and criminology curricula.', 'active'),
+(3, 'CBA', 'College of Business Administration', 'Academic department covering Business Administration, Management, and Accountancy programs.', 'active'),
+(4, 'COED', 'College of Education', 'Academic department preparing professional educators for elementary and secondary grade levels.', 'active');
+
+-- Insert default academic programs
+INSERT INTO programs (id, program_abbrev, program_name, program_type, program_length, department_id, status, description) VALUES
+(1, 'BSIT', 'Bachelor of Science in Information Technology', 'Bachelors Degree', '4 Years', 1, 'active', 'Prepares students to be IT professionals who are able to perform installation, operation, programming, and maintenance of computer systems.'),
+(2, 'BSCS', 'Bachelor of Science in Computer Science', 'Bachelors Degree', '4 Years', 1, 'active', 'Study of computing concepts, algorithmic foundations, software design, and machine intelligence.'),
+(3, 'BSCRIM', 'Bachelor of Science in Criminology', 'Bachelors Degree', '4 Years', 2, 'active', 'Study of crime causation, criminal law, law enforcement administration, and correctional institutions.'),
+(4, 'BSBA', 'Bachelor of Science in Business Administration major in Marketing Management', 'Bachelors Degree', '4 Years', 3, 'active', 'Equips students with principles of modern marketing, consumer behavior, and business development.'),
+(5, 'BEED', 'Bachelor of Elementary Education', 'Bachelors Degree', '4 Years', 4, 'active', 'Designed to prepare future teachers for early childhood and elementary grade levels.'),
+(6, 'BSED', 'Bachelor of Secondary Education', 'Bachelors Degree', '4 Years', 4, 'active', 'Prepares educators equipped with professional pedagogical skills for high school instruction.');
+
+-- Insert default grading periods for 1st Semester
+INSERT INTO grading_periods (name, order_num, weight, is_current, academic_term_id) VALUES
+('Prelim', 1, 20.00, 0, 1),
+('Midterm', 2, 20.00, 0, 1),
+('Semi-Final', 3, 20.00, 0, 1),
+('Final', 4, 40.00, 1, 1);
+
+-- Insert default grading periods for 2nd Semester
+INSERT INTO grading_periods (name, order_num, weight, is_current, academic_term_id) VALUES
+('Prelim', 1, 20.00, 0, 2),
+('Midterm', 2, 20.00, 0, 2),
+('Semi-Final', 3, 20.00, 0, 2),
+('Final', 4, 40.00, 1, 2);
+
+-- Insert baseline institutional accounts (Dean, Faculty, Student)
+-- Dean User (email: dean@gwc.edu, temporary password: dean123)
+INSERT INTO users (id, email, password, status, is_temp_password) VALUES
+(2, 'dean@gwc.edu', '$2y$10$3IypjozAw8yLkp7rV6u0Vehn02qDO71TpyMwdISTvIASSnmvJM23O', 'active', 1);
+INSERT INTO user_roles (user_id, role_id) VALUES (2, 2);
+INSERT INTO faculty_details (user_id, first_name, last_name, faculty_type, department_id) VALUES
+(2, 'College', 'Dean', 'dean', 1);
+INSERT INTO faculty (id, user_id, department_id) VALUES (1, 2, 1);
+
+-- Faculty User (email: faculty@gwc.edu, temporary password: faculty123)
+INSERT INTO users (id, email, password, status, is_temp_password) VALUES
+(3, 'faculty@gwc.edu', '$2y$10$6yixGt.oU8bikt2et9G1peP7irbqvgzRPd3yOg3X9VrQdutUG9su.', 'active', 1);
+INSERT INTO user_roles (user_id, role_id) VALUES (3, 3);
+INSERT INTO faculty_details (user_id, first_name, last_name, faculty_type, department_id) VALUES
+(3, 'John', 'Teacher', 'instructor', 1);
+INSERT INTO faculty (id, user_id, department_id) VALUES (2, 3, 1);
+
+-- Student User (email: student@gwc.edu, temporary password: student123)
+INSERT INTO users (id, email, password, status, is_temp_password) VALUES
+(4, 'student@gwc.edu', '$2y$10$XoYki09fPgi4t/.DBP3H9.bgcl1vxD/avtbjPaaazcgdnwwnMlN4.', 'active', 1);
+INSERT INTO user_roles (user_id, role_id) VALUES (4, 4);
+INSERT INTO student_details (user_id, student_number, first_name, last_name, program_id, set_id, year_level, status) VALUES
+(4, '2026-0001', 'Juan', 'Dela Cruz', 1, NULL, 1, 'Regular');
+INSERT INTO students (id, user_id, set_id, year_level, status) VALUES (1, 4, NULL, 1, 'Regular');
+
+-- Automated Grade Audit Trigger (Optional: requires MySQL TRIGGER privilege)
+-- Note: Shared and free hosting providers (e.g. InfinityFree) do not grant TRIGGER privileges to MySQL users.
+-- The AcadTrack application layer handles grade modification audit logging automatically as a fallback.
+-- If your host supports triggers (e.g., local development or VPS), you can uncomment the block below:
+--
+-- DROP TRIGGER IF EXISTS before_grade_evaluation_change;
+-- DELIMITER //
+-- CREATE TRIGGER before_grade_evaluation_change
+-- BEFORE UPDATE ON grades
+-- FOR EACH ROW
+-- BEGIN
+--     IF (OLD.grade <> NEW.grade) OR (OLD.grade IS NULL AND NEW.grade IS NOT NULL) OR (OLD.grade IS NOT NULL AND NEW.grade IS NULL) THEN
+--         INSERT INTO grade_history_log (grade_id, student_id, old_score, new_score, action_performed)
+--         VALUES (OLD.id, OLD.student_id, OLD.grade, NEW.grade, 'UPDATE');
+--     END IF;
+-- END //
+-- DELIMITER ;
+
+
+
+
